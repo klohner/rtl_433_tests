@@ -81,7 +81,7 @@ To understand this algorithm, it is helpful to consider how the Universal Radio 
 |:-                   |:-                         |:-           |
 | Cut before/after    | Cut Before Sequence: 1111 | Remove symbols before the 1111 in the start delimiter |
 | Cut before/after    | Cut Before Positon: 4     | Remove the 1111 |
-| Cut before/after    | Cut After Position 145    | Result is 146 bits in length
+| Cut before/after    | Cut After Position: 145    | Result is 146 bits in length
 | Edge Trigger        |                           | Bi-Phase Manchester I, 01 -> 1 and 10 -> 0 
 | Differential Encoding |                         | First bit copied as is, subsequent transition -> 1, no transition -> 0
 

@@ -18,12 +18,19 @@ See [EXAMPLES](../EXAMPLES.md) for an index of available samples of this type.
 | Modulation         | FSK                 |
 
 Signal Symbols:
-``
-'{160}'
+
+```
+
+{160}
+```
+
 
 Decoded Logical Bits:
-``
-`{72}'
+
+```
+
+{72}
+```
 
 rtl_433 Interpretation:
 
