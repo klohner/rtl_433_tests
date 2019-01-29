@@ -1,120 +1,218 @@
-﻿# Toyota_TPMS Signal Decoding
+﻿# Analysis of samples
 
-See [EXAMPLES](EXAMPLES.md) for decodings of available signals of this type.
+## [Toyota_TPMS](../ANALYSIS.md)
 
-## Device
+### [gfile006.cu8](../gfile006.cu8)
 
-Seen on a Toyota Auris (Corolla).
+![gfile006_interpretation_01.jpg](gfile006_interpretation_01.jpg)
 
-|||
-|:-|:-|
-| Device Type | TPMS Device |
-| Company | Pacific Industrial Co., Ltd. |
-| Manufacturer | Pacific Industrial Co., Ltd. (Pacific Manufacturing Ohio, Inc.) |
-| Model | PMV-C210 |
-| Date of FCC Application | 2010-03-19 |
-| Toyota Part Number | 42607-02031 |
-
-
-## References:
-
-- [rtl_433/src/devices/tpms_toyota.c](https://github.com/merbanan/rtl_433/blob/master/src/devices/tpms_toyota.c)
-- [Toyota TPMS sensor #706](https://github.com/merbanan/rtl_433/issues/706)
-- [RAV4.4 - Receiving and Decoding TPMS Valve Data](http://forum.rav4driversclub.com/thread/74/rav4-receiving-decoding-tpms-valve)
-- [FCC ID PCX-PMV-C210](https://fccid.io/PCX-PMV-C210)
-
-## Approximate Signal Info
-
-|||
-|:-|:-|
-| Frequency          | 433-434 MHz         |
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
 | Modulation         | FSK                 |
-| Deviation          | ?                   |
-| Symbol Bit Rate    | 20,000 bps          |
-| Symbol Length      | 50 μs               |
-| Symbols Per Signal | 160                 |
-| Frames Per Signal  | 1                   |
 
-## Decoding
-
-There are 160 symbols in the signal:
-
-Assume the higher mark frequency of the FSK signal is a "1" symbol, and the lower space frequency is a "0" symbol.
-
-|||
-|:-|:-|
-| Preamble             | 8 symbols: 01010101        | 
-| Start Delimiter      | 6 symbols: 001111          | 
-| Data Symbols         | 146 symbols                |
-
-Encoding is 0-Transition Differential Manchester Coding.  This variation is essentially Bi-Phase Space Coding ("BP-S" or "FM0") and defines a signal 
-transition when encoding the logical "0" bits, no transition for logical "1" bits, between logical bit periods.
-
-Each logical bit period consists of pair of two symbol bits, including the knowledge of whether or not a transition exists immediately before the period. 
-There will always be a transition between the pair of symbols by definition.  The transition immediately before the period is the data transition and
-the transition in the middle of the period is the clock transition.
-
-The decoded logical data bit of the period is determined by the presence ("0") or absense ("1") of a transition immediately before the first symbol 
-of the period.
-
-There exists a Differential Manchester decoding efficiency if three things are known about the signal:
-
-1. The initial symbol transition is to be considered a mid-period clock transition.
-
-2. That initial decoded period will result in a logical data bit with a predetermined relationship to the initial symbol bit (instead of an
-   unknown existence or not of a transition before the period).
-
-3. The final transition before the end of the signal must be a clock transition in order to result in a decoded logical bit for that period.
-
-These requirements are met in this signal and it is likely not a coincidence.  In this scenario, the resulting decoded data will have a length equal to 
-the number of clock transitions found within the signal (the beginning and end of the signal itself are not considered clock transitions).  This is also
-why although there are 146 symbols in the signal, there will be only 72 decoded logical bits, not 73, as there are only 72 clock transitions inside this 
-signal.  And, due to our predetermined selection of "0-Transition Differential Manchester Coding" (we'll refer to this as "BP-S"), the predetermined 
-relationship to the initial symbol bit to the initial decoded logical data bit is to be the inverse value.  Thus, our initial symbol bit in the will
-always be "0" (and it must be due to our known Start Delimiter) and our initial decoded logical data bit will always be "1".
-
-To understand this algorithm, it is helpful to consider how the Universal Radio Hacker functions decode a Differential Manchester encoded signal.
-
-## Universal Radio Hacker Interpretation and Decoding:
-
-| Decoder Function    | Information and Options   | Description |
-|:-                   |:-                         |:-           |
-| Cut before/after    | Cut Before Sequence: 1111 | Remove symbols before the 1111 in the start delimiter |
-| Cut before/after    | Cut Before Positon: 4     | Remove the 1111 |
-| Cut before/after    | Cut After Position: 145    | Result is 146 bits in length
-| Edge Trigger        |                           | Bi-Phase Manchester I, 01 -> 1 and 10 -> 0 
-| Differential Encoding |                         | First bit copied as is, subsequent transition -> 1, no transition -> 0
-
-Note that the combination of the Edge Trigger and Differential Encoding functions in combination essentially result in a BP-S 
-decoding.  The success of this algorithm to properly decode our data takes advantage of the fact that the first and last 
-transitions in the symbol data (not into and out of the signal itself) are clock transitions and that the first transition is 
-`0` to `1` (and not a `1` to `0`) resulting in a final decoded logical bit of '1'.
-
-For example:
+Signal Symbols:
 
 ```
-0011001100101100101010101101001011   Original symbol bits (34 symbol bits)
-  1 0 1 0 1 1 0 1 1 1 1 1 0 0 1 1    Result of Edge Trigger function (16 logical data bits)
-  1 1 1 1 1 0 1 1 0 0 0 0 1 0 1 0    Result of Differential Encoding function (16 logical data bits)
+0101010100111100110011001011001010101011010010101101010101001100110010101100110011010010110011001011010101001011010101010101010100101101010101010010110100101011
+{160}553cccb2ab4ad54ccaccd2ccb54b55552d552d2b
 ```
 
-## Data Interpretation
+Data Symbols:
 
-After decoding data symbols using BP-S coding, we're left with a logical data message of 72 bits (9 bytes)
+```
+00110011001011001010101011010010101101010101001100110010101100110011010010110011001011010101001011010101010101010100101101010101010010110100101011
+{146}332caad2b55332b334b32d52d5554b554b4ac
+```
 
-| Offset Bit | Length | Description | Value           | Notes |
-|:-----------|:-------|:------------|:----------------|:------|
-| 0          | 4      | FixedValue  | 1111  (0xf)     | Always 1111 in observed signals and not technically considered part of Serial ID |
-| 4          | 28     | Serial_ID   | *               | Sensor Serial ID is 7 hex digits and is printed on TPMS sensor |
-| 32         | 1      | Status_80   | 1               | Unknown (1 = Battery OK?)
-| 33         | 8      | Pressure    | 4 * ( PSI + 7 ) | PSI = ( Value / 4 ) - 7 |
-| 41         | 8      | Temperature | Celsius + 40    | Celsius = Value - 40, resulting in a range from -40C to +215C |
-| 49         | 1      | Status_40   | 0               | Unknown
-| 50         | 1      | Status_20   | 0               | Unknown
-| 51         | 1      | Status_10   | 0               | Unknown
-| 52         | 1      | Status_08   | 0               | Unknown
-| 53         | 1      | Status_04   | 0               | Unknown (1 = Rapid Deflation?)
-| 54         | 1      | Status_02   | 0               | Unknown
-| 55         | 1      | Status_01   | 0               | Unknown
-| 56         | 8      | PressureInv | Pressure ^ 0xff | Pressure as inverted value |
-| 64         | 8      | CRC         | *               | CRC8 over bits 0-63, 0x07 truncated polynomial, initial value 0x80 |
+Decoded Logical Bits:
+
+```
+111110110000101001000011111001111101011110100010100000000101000001010100
+{72}fb0a43e7d7a2805054
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad54ccaccd2ccb54b55552d552d2b`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a43e7
+status    : 128          pressure_PSI: 36.750      temperature_C: 29.000     mic       : CRC
+```
+
+### [gfile008.cu8](../gfile008.cu8)
+
+![gfile008_interpretation_01.jpg](gfile008_interpretation_01.jpg)
+
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
+| Modulation         | FSK                 |
+
+Signal Symbols:
+
+```
+0101010100111100110011001011001010101011010010101101010100110101010010101011001100101101001101010101001100110011010101010101010100101101010011010011010011010011
+{160}553cccb2ab4ad5354ab32d35533355552d4d34d3
+```
+
+Decoded Logical Bits:
+
+```
+111110110000101001000110001000111101011000011111100000000101001101101101
+{72}fb0a4623d61f80536d
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad5354ab32d35533355552d4d34d3`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a4623
+status    : 128          pressure_PSI: 36.000      temperature_C: 23.000     mic       : CRC
+```
+
+
+### [gfile010.cu8](../gfile010.cu8)
+
+![gfile010_interpretation_01.jpg](gfile010_interpretation_01.jpg)
+
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
+| Modulation         | FSK                 |
+
+Signal Symbols:
+
+```
+0101010100111100110011001011001010101011010010101101010100110101010010101101010011010010110010101011010101010101010101010101010100101101010011010010110100101011
+{160}553cccb2ab4ad5354ad4d2cab55555552d4d2d2b
+```
+
+Decoded Logical Bits:
+
+```
+111110110000101001000110001001001101011000100000000000000101001101010100
+{72}fb0a4624d620005354
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad5354ad4d2cab55555552d4d2d2b`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a4624
+status    : 128          pressure_PSI: 36.000      temperature_C: 24.000     mic       : CRC
+```
+
+
+
+### [gfile011.cu8](../gfile011.cu8)
+
+![gfile011_interpretation_01.jpg](gfile011_interpretation_01.jpg)
+
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
+| Modulation         | FSK                 |
+
+Signal Symbols:
+
+```
+0101010100111100110011001011001010101011010010101101010100101011010100101101001100101100101010101011010101001010101010101010101011010100110011001100101010110011
+{160}553cccb2ab4ad52b52d32caab54aaaaad4cccab3
+```
+
+Decoded Logical Bits:
+
+```
+111110110000101001000100100101011101100000100010000000000100111111100011
+{72}fb0a4495d822004fe3
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad52b52d32caab54aaaaad4cccab3`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a4495
+status    : 128          pressure_PSI: 37.000      temperature_C: 28.000     mic       : CRC
+```
+
+### [gfile022.cu8](../gfile022.cu8)
+
+![gfile022_interpretation_01.jpg](gfile022_interpretation_01.jpg)
+
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
+| Modulation         | FSK                 |
+
+Signal Symbols:
+
+```
+0101010100111100110011001011001010101011010010101101010101001100110010101100110011010010110011001011010101001010101010101010101011010010101010110011010101001011
+{160}553cccb2ab4ad54ccaccd2ccb54aaaaad2ab354b
+```
+
+Decoded Logical Bits:
+
+```
+111110110000101001000011111001111101011110100010000000000101000011100010
+{72}fb0a43e7d7a20050e2
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad54ccaccd2ccb54aaaaad2ab354b`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a43e7
+status    : 128          pressure_PSI: 36.750      temperature_C: 28.000     mic       : CRC
+```
+
+
+### [gfile072.cu8](../gfile072.cu8)
+
+![gfile072_interpretation_01.jpg](gfile072_interpretation_01.jpg)
+
+| Field              | Value               |
+|:------             |:-----               |
+| Sample Rate        | 250,000 samples/sec |
+| Bit Length         | 12                  |
+| Error Tolerance    | 2                   |
+| Modulation         | FSK                 |
+
+Signal Symbols:
+
+```
+0101010100111100110011001011001010101011010010101101010101001100110010101100110011010010110011010100101010101100101010101010101011010010101011001100101011010011
+{160}553cccb2ab4ad54ccaccd2cd4aacaaaad2accad3
+```
+
+Decoded Logical Bits:
+
+```
+111110110000101001000011111001111101011100100001100000000101000111100101
+{72}fb0a43e7d7218051e5
+```
+
+rtl_433 Interpretation:
+
+`rtl_433 -y {160}553cccb2ab4ad54ccaccd2cd4aacaaaad2accad3`
+
+```
+model     : Toyota       type      : TPMS          id        : fb0a43e7
+status    : 128          pressure_PSI: 36.500      temperature_C: 27.000     mic       : CRC
+```

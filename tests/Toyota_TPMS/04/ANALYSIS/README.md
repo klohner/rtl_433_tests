@@ -1,10 +1,6 @@
 # Analysis of samples
 
-See [README](../README.md) for general signal info and decoding methodology.
-
-See [EXAMPLES](../EXAMPLES.md) for an index of available samples of this type.
-
-## Toyota_TPMS/04/
+## [Toyota_TPMS](../ANALYSIS.md)
 
 ### [.cu8](.cu8)
 
